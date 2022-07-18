@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  RoleName:
+    Description: "Role Name"
+    Type: String
+    Default: "RoleForDLM"
+
+Resources:
+  DLMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: "${RoleName}"
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service:
+            - dlm.amazonaws.com
+          Action:
+          - sts:AssumeRole    
+      Policies:
+      - PolicyName: "DLMPolicy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:CreateSnapshot
+            - ec2:CreateSnapshots
+            - ec2:DeleteSnapshot
+            - ec2:DescribeVolumes
+            - ec2:DescribeInstances
+            - ec2:DescribeSnapshots
+            - ec2:CopySnapshot
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ec2:CreateTags
+            Resource: arn:aws:ec2:*::snapshot/*
+
+  LifeCyclePolicy:
+    Type: "AWS::DLM::LifecyclePolicy"
+    Properties:
+      Description: "Lifecycle Policy to automate EBS Snapshots"
+      State: "ENABLED"
+      ExecutionRoleArn: !GetAtt DLMRole.Arn
+      PolicyDetails:
+        ResourceTypes: 
+          - "VOLUME"
+        TargetTags:
+          - Key: "EBSVolume"
+            Value: "AutomateEBSSnapshot"
+        Schedules:
+          - Name: "Daily Snapshots of EBS"
+            TagsToAdd:
+              - Key: "type"
+                Value: "DailySnapshot"
+            CreateRule:
+              Interval: 24
+              IntervalUnit: "HOURS"
+              Times: 
+                - "04:00"
+            RetainRule:
+              Count: 1
+            CopyTags: true
+            
